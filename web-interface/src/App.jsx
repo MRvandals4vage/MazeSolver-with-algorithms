@@ -16,6 +16,9 @@ function App() {
   const [animationHistory, setAnimationHistory] = useState(null);
   const [animSpeed, setAnimSpeed] = useState(5);
 
+  // Allow configuring backend URL for separated Vercel + Render deployments
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
   // Colors based on main.py
   const idxToColor = [
     '#000000', // 0: black (wall)
@@ -112,7 +115,7 @@ function App() {
 
   const fetchMazes = async (autoSelectLatest = false) => {
     try {
-      const res = await fetch('/api/mazes');
+      const res = await fetch(`${API_BASE}/api/mazes`);
       const data = await res.json();
       setMazes(data);
       if (data.length > 0) {
@@ -133,7 +136,7 @@ function App() {
     setStatus('running');
     addLog(`Generating ${numMazes} maze(s) natively...`);
     try {
-      const res = await fetch('/api/generate', {
+      const res = await fetch(`${API_BASE}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ numMazes, display: 0 }) // Always disable Pygame
@@ -162,7 +165,7 @@ function App() {
     setStatus('running');
     addLog(`Solving ${selectedMaze} using ${algorithm.toUpperCase()}...`);
     try {
-      const res = await fetch('/api/solve', {
+      const res = await fetch(`${API_BASE}/api/solve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ algorithm, mazeFile: selectedMaze, display: 0 }) // Always disable pygame
@@ -191,7 +194,7 @@ function App() {
     try {
       // 1. Fetch un-solved grid base
       const gridQuery = new URLSearchParams({ mazeFile: targetMaze });
-      const resGrid = await fetch(`/api/grid?${gridQuery}`);
+      const resGrid = await fetch(`${API_BASE}/api/grid?${gridQuery}`);
       const dataGrid = await resGrid.json();
       if (!resGrid.ok) throw new Error(dataGrid.error);
       
@@ -201,7 +204,7 @@ function App() {
       if (mode === 'solved') {
           const algoParam = algorithm === 'astar' ? 'aStar' : algorithm;
           const histQuery = new URLSearchParams({ mazeFile: targetMaze, algorithm: algoParam });
-          const resHist = await fetch(`/api/history?${histQuery}`);
+          const resHist = await fetch(`${API_BASE}/api/history?${histQuery}`);
           
           if (resHist.ok) {
               const histData = await resHist.json();
