@@ -13,6 +13,8 @@ function App() {
   const logsEndRef = useRef(null);
   const canvasRef = useRef(null);
   const [gridData, setGridData] = useState(null);
+  const [animationHistory, setAnimationHistory] = useState(null);
+  const [animSpeed, setAnimSpeed] = useState(5);
 
   // Colors based on main.py
   const idxToColor = [
@@ -60,8 +62,7 @@ function App() {
          let step = 0;
          const { explored, path } = animationHistory;
          const totalSteps = explored.length + path.length;
-         
-         const speed = Math.max(1, Math.floor(explored.length / 100)); // Finish quickly (~1-2 seconds)
+         let speed = animSpeed; // Number of steps to draw per frame
 
          const renderFrame = () => {
              for (let i = 0; i < speed; i++) {
@@ -309,6 +310,21 @@ function App() {
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
+          </div>
+
+          <div className="control-group" style={{ marginTop: '0.5rem' }}>
+            <label className="control-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Animation Speed</span>
+              <span>{animSpeed}x</span>
+            </label>
+            <input 
+              type="range" 
+              min="1" 
+              max="50" 
+              value={animSpeed} 
+              onChange={(e) => setAnimSpeed(parseInt(e.target.value))}
+              style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--primary)' }}
+            />
           </div>
 
           <button 

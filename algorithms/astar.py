@@ -29,6 +29,7 @@ class AStar:
         self.grid_dim = grid_dim
         self.open_list = PriorityQueue()
         self.closed_list = []
+        self.closed_set = set()
         self.path = []
 
     # function to calculate the cost of a node using the heuristic function (Euclidean distance)
@@ -56,7 +57,7 @@ class AStar:
             next_node = (x + move[0], y + move[1]) # calculate the next node position
             if is_in_grid(next_node, self.grid_dim):
                 # check if the next node is not a wall
-                if self.grid[next_node] != 0 and next_node not in self.closed_list:
+                if self.grid[next_node] != 0 and next_node not in self.closed_set:
                     # create a new node
                     if heuristic == 1:
                         h = self.heuristic1(next_node)
@@ -78,18 +79,23 @@ class AStar:
         f = h + g
         start_node = Node(None, g, f, self.start)
         self.open_list.put((f, next(unique), start_node))
-        while True:
+        while not self.open_list.empty():
             curr = self.open_list.get()[2] # get the node with the lowest cost
+            if curr.position in self.closed_set:
+                continue
+            
             if curr.position == self.goal:
                 while curr is not None:
                     self.path.append(curr.position)
                     curr = curr.parent
                 self.path.reverse()
                 return self.path, True
+                
             for child in self.generate_children(curr,1):
-                if child not in self.closed_list:
-                    self.open_list.put((child.f, next(unique), child))
+                self.open_list.put((child.f, next(unique), child))
+                
             self.closed_list.append(curr.position)  
+            self.closed_set.add(curr.position)
         return self.path, False
 
     # function to solve the maze using A* algorithm with Manhattan distance
@@ -101,8 +107,12 @@ class AStar:
         f = h + g
         start_node = Node(None, g, f, self.start)
         self.open_list.put((f, next(unique), start_node))
-        while True:
+        while not self.open_list.empty():
             curr = self.open_list.get()[2]
+            
+            if curr.position in self.closed_set:
+                continue
+                
             if curr.position == self.goal:
                 self.path = []
                 while curr is not None:
@@ -112,9 +122,10 @@ class AStar:
                 return self.path, True
 
             for child in self.generate_children(curr,2):
-                if child not in self.closed_list:
-                    self.open_list.put((child.f, next(unique), child))
+                self.open_list.put((child.f, next(unique), child))
+                
             self.closed_list.append(curr.position)
+            self.closed_set.add(curr.position)
         return self.path, False
 
 

@@ -35,6 +35,9 @@ class DFS:
         return path
 
     def child_gen(self, grid):
+        if not self.openlist:
+            return [], True
+            
         curr = self.openlist.pop(0)
         x,y = curr.x, curr.y
 
