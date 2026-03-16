@@ -160,7 +160,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     address = "../mazes_input/" + args.maze_file
-    grid = np.genfromtxt(address, delimiter=',', dtype=int)
+    grid = np.genfromtxt(address, delimiter=',', dtype=float).astype(int)
     num_rows = len(grid)
     num_columns = len(grid[0])
 

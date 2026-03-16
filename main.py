@@ -29,7 +29,7 @@ def main():
 
     address = prefix + args.maze_file
     try:
-        grid = np.genfromtxt(address, delimiter=',', dtype=int)
+        grid = np.genfromtxt(address, delimiter=',', dtype=float).astype(int)
 
     except:
         raise Exception(f"Maze {address} not found.")

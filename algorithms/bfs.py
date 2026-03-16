@@ -26,6 +26,7 @@ class BFS:
         self.openlist = []
         self.openlist.append(Node(start, None))
         self.closedlist = []
+        self.explored_set = set([self.start])
 
     def get_path(self, node):
         path = []
@@ -43,8 +44,9 @@ class BFS:
 
         neighbors = [(x+1,y), (x-1,y), (x,y+1), (x,y-1)]
         for neighbor in neighbors:
-            if (is_in_grid(neighbor, self.dim) and (grid[neighbor[0], neighbor[1]] in [1, 3])): # type: ignore
+            if is_in_grid(neighbor, self.dim) and (grid[neighbor[0], neighbor[1]] in [1, 3]) and neighbor not in self.explored_set: # type: ignore
                 next_node = Node(neighbor, curr)
+                self.explored_set.add(neighbor)
                 self.openlist.append(next_node) # type: ignore
                 if (neighbor == self.goal): # type: ignore
                     self.closedlist.append(next_node) # type: ignore
@@ -83,7 +85,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     address = "../mazes_input/" + args.maze_file
-    grid = np.genfromtxt(address, delimiter=',', dtype=int)
+    grid = np.genfromtxt(address, delimiter=',', dtype=float).astype(int)
     num_rows = len(grid)
     num_columns = len(grid[0])
 
