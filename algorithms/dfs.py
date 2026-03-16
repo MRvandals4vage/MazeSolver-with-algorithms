@@ -1,5 +1,6 @@
-import pygame, time, argparse, csv
-import numpy as np
+# pyre-ignore-all-errors
+import pygame, time, argparse, csv # type: ignore
+import numpy as np # type: ignore
 from time import sleep
 
 # function to check if a position is in the grid
@@ -25,6 +26,7 @@ class DFS:
         self.openlist = []
         self.openlist.append(Node(start, None))
         self.closedlist = []
+        self.explored_set = set([self.start])
 
     def get_path(self, node):
         path = []
@@ -34,19 +36,23 @@ class DFS:
         return path
 
     def child_gen(self, grid):
+        if not self.openlist:
+            return [], True
+            
         curr = self.openlist.pop(0)
         x,y = curr.x, curr.y
 
         neighbors = [(x+1,y), (x-1,y), (x,y+1), (x,y-1)]
         for neighbor in neighbors:
-            if (is_in_grid(neighbor, self.dim) and (grid[neighbor[0], neighbor[1]] in [1, 3])):
+            if is_in_grid(neighbor, self.dim) and (grid[neighbor[0], neighbor[1]] in [1, 3]) and neighbor not in self.explored_set: # type: ignore
                 next_node = Node(neighbor, curr)
-                self.openlist.insert(0, next_node)
-                if (neighbor == self.goal):
-                    self.closedlist.append(next_node)
-                    return self.get_path(next_node), True
+                self.explored_set.add(neighbor)
+                self.openlist.insert(0, next_node) # type: ignore
+                if (neighbor == self.goal): # type: ignore
+                    self.closedlist.append(next_node) # type: ignore
+                    return self.get_path(next_node), True # type: ignore
                     
-        self.closedlist.append(curr)
+        self.closedlist.append(curr) # type: ignore
         return [], False
 
 if __name__ == "__main__":
@@ -80,7 +86,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     address = "../mazes_input/" + args.maze_file
-    grid = np.genfromtxt(address, delimiter=',', dtype=int)
+    grid = np.genfromtxt(address, delimiter=',', dtype=float).astype(int)
     num_rows = len(grid)
     num_columns = len(grid[0])
 
@@ -133,7 +139,7 @@ if __name__ == "__main__":
             # draw
             for row in range(num_rows):
                 for column in range(num_columns):
-                    color = idx_to_color[int(grid[row, column])]
+                    color = idx_to_color[int(grid[row, column])] # type: ignore
                     pygame.draw.rect(screen, color, [(margin + width) * column + margin, (margin + height) * row + margin,width, height])
 
             # set limit to 60 frames per second
@@ -162,7 +168,7 @@ if __name__ == "__main__":
             
                 for row in range(num_rows):
                     for column in range(num_columns):
-                        color = idx_to_color[grid[row, column]]
+                        color = idx_to_color[grid[row, column]] # type: ignore
                         pygame.draw.rect(screen, color, [(margin + width) * column + margin, (margin + height) * row + margin,width, height])
 
                 clock.tick(60) # set limit to 60 frames per second
@@ -180,16 +186,17 @@ if __name__ == "__main__":
         pygame.quit()
 
     else:
-        pygame.display.set_caption(f"Solving using DFS: {address}")
+        print(f"Solving using DFS: {address}")
         dfs = DFS(start, goal, grid_dim)
         done = False
 
         while not done:
             child_gen, done = dfs.child_gen(grid)
-            explored = [(node.x, node.y) for node in dfs.closedlist]
+            
+        explored = [(node.x, node.y) for node in dfs.closedlist]
 
-            for pos in explored:
-                grid[pos[0], pos[1]] = 4
+        for pos in explored:
+            grid[pos[0], pos[1]] = 4
 
         for pos in child_gen:
             grid[pos[0], pos[1]] = 5
@@ -200,9 +207,18 @@ if __name__ == "__main__":
         print("Solved!")
 
     # export the child_gen to a csv file
-    with open(f"../mazes_output/dfs/dfs_{args.maze_file}", "w", newline="") as f:
+    csv_path = f"../mazes_output/dfs/dfs_{args.maze_file}"
+    with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerows(grid)
+
+    import json
+    history = {
+        "explored": [[int(pos[0]), int(pos[1])] for pos in explored],
+        "path": [[int(pos[0]), int(pos[1])] for pos in child_gen] if child_gen else []
+    }
+    with open(csv_path.replace('.csv', '.json'), "w") as f:
+        json.dump(history, f)
 
     print(f"--- finished {time.time()-start_time:.3f} s---")
     exit(0)

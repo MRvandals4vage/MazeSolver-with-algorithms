@@ -1,5 +1,6 @@
-import pygame, time, csv, argparse
-import numpy as np
+# pyre-ignore-all-errors
+import pygame, time, argparse, csv # type: ignore
+import numpy as np # type: ignore
 from time import sleep
 from queue import PriorityQueue
 from itertools import count
@@ -28,6 +29,7 @@ class AStar:
         self.grid_dim = grid_dim
         self.open_list = PriorityQueue()
         self.closed_list = []
+        self.closed_set = set()
         self.path = []
 
     # function to calculate the cost of a node using the heuristic function (Euclidean distance)
@@ -55,7 +57,7 @@ class AStar:
             next_node = (x + move[0], y + move[1]) # calculate the next node position
             if is_in_grid(next_node, self.grid_dim):
                 # check if the next node is not a wall
-                if self.grid[next_node] != 0 and next_node not in self.closed_list:
+                if self.grid[next_node] != 0 and next_node not in self.closed_set:
                     # create a new node
                     if heuristic == 1:
                         h = self.heuristic1(next_node)
@@ -77,18 +79,23 @@ class AStar:
         f = h + g
         start_node = Node(None, g, f, self.start)
         self.open_list.put((f, next(unique), start_node))
-        while True:
+        while not self.open_list.empty():
             curr = self.open_list.get()[2] # get the node with the lowest cost
+            if curr.position in self.closed_set:
+                continue
+            
             if curr.position == self.goal:
                 while curr is not None:
                     self.path.append(curr.position)
                     curr = curr.parent
                 self.path.reverse()
                 return self.path, True
+                
             for child in self.generate_children(curr,1):
-                if child not in self.closed_list:
-                    self.open_list.put((child.f, next(unique), child))
+                self.open_list.put((child.f, next(unique), child))
+                
             self.closed_list.append(curr.position)  
+            self.closed_set.add(curr.position)
         return self.path, False
 
     # function to solve the maze using A* algorithm with Manhattan distance
@@ -100,8 +107,12 @@ class AStar:
         f = h + g
         start_node = Node(None, g, f, self.start)
         self.open_list.put((f, next(unique), start_node))
-        while True:
+        while not self.open_list.empty():
             curr = self.open_list.get()[2]
+            
+            if curr.position in self.closed_set:
+                continue
+                
             if curr.position == self.goal:
                 self.path = []
                 while curr is not None:
@@ -111,9 +122,10 @@ class AStar:
                 return self.path, True
 
             for child in self.generate_children(curr,2):
-                if child not in self.closed_list:
-                    self.open_list.put((child.f, next(unique), child))
+                self.open_list.put((child.f, next(unique), child))
+                
             self.closed_list.append(curr.position)
+            self.closed_set.add(curr.position)
         return self.path, False
 
 
@@ -148,7 +160,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     address = "../mazes_input/" + args.maze_file
-    grid = np.genfromtxt(address, delimiter=',', dtype=int)
+    grid = np.genfromtxt(address, delimiter=',', dtype=float).astype(int)
     num_rows = len(grid)
     num_columns = len(grid[0])
 
@@ -196,7 +208,7 @@ if __name__ == "__main__":
             # draw
             for row in range(num_rows):
                 for column in range(num_columns):
-                    color = idx_to_color[int(grid[row, column])]
+                    color = idx_to_color[int(grid[row, column])] # type: ignore
                     pygame.draw.rect(screen, color, [(margin + width) * column + margin, (margin + height) * row + margin,width, height])
 
             # set limit to 60 frames per second
@@ -225,7 +237,7 @@ if __name__ == "__main__":
             
                 for row in range(num_rows):
                     for column in range(num_columns):
-                        color = idx_to_color[grid[row, column]]
+                        color = idx_to_color[grid[row, column]] # type: ignore
                         pygame.draw.rect(screen, color, [(margin + width) * column + margin, (margin + height) * row + margin,width, height])
 
                 clock.tick(60) # set limit to 60 frames per second
@@ -260,9 +272,18 @@ if __name__ == "__main__":
         grid[-1, -1] = 3
 
     # export maze to .csv file
-    with open(f"../mazes_output/astar/astar_{args.maze_file}", "w", newline="") as f:
+    csv_path = f"../mazes_output/astar/astar_{args.maze_file}"
+    with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerows(grid)
+
+    import json
+    history = {
+        "explored": [[int(pos[0]), int(pos[1])] for pos in explored],
+        "path": [[int(pos[0]), int(pos[1])] for pos in solution]
+    }
+    with open(csv_path.replace('.csv', '.json'), "w") as f:
+        json.dump(history, f)
 
     print(f"--- finished {time.time()-start_time:.3f} s---")
     exit(0)

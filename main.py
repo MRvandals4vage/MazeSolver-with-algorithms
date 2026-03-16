@@ -1,5 +1,5 @@
-import pygame, time, csv, argparse
-import numpy as np
+import pygame, argparse, time # type: ignore
+import numpy as np # type: ignore
 
 def main():
     start_time = time.time()
@@ -29,7 +29,7 @@ def main():
 
     address = prefix + args.maze_file
     try:
-        grid = np.genfromtxt(address, delimiter=',', dtype=int)
+        grid = np.genfromtxt(address, delimiter=',', dtype=float).astype(int)
 
     except:
         raise Exception(f"Maze {address} not found.")

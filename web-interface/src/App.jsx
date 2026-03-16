@@ -13,6 +13,8 @@ function App() {
   const logsEndRef = useRef(null);
   const canvasRef = useRef(null);
   const [gridData, setGridData] = useState(null);
+  const [animationHistory, setAnimationHistory] = useState(null);
+  const [animSpeed, setAnimSpeed] = useState(5);
 
   // Colors based on main.py
   const idxToColor = [
@@ -38,7 +40,7 @@ function App() {
       canvas.width = (width + margin) * numCols + margin;
       canvas.height = (height + margin) * numRows + margin;
       
-      // Background (grey like Pygame)
+      // Draw Base Grid Background (grey like Pygame)
       ctx.fillStyle = '#d3d3d3';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
@@ -53,8 +55,46 @@ function App() {
           );
         }
       }
+
+      // Draw Animation if history exists
+      let animFrame;
+      if (animationHistory) {
+         let step = 0;
+         const { explored, path } = animationHistory;
+         const totalSteps = explored.length + path.length;
+         let speed = animSpeed; // Number of steps to draw per frame
+
+         const renderFrame = () => {
+             for (let i = 0; i < speed; i++) {
+                 if (step < explored.length) {
+                     const [r, c] = explored[step];
+                     if (gridData[r][c] !== 2 && gridData[r][c] !== 3) { // keep start/goal
+                         ctx.fillStyle = idxToColor[4]; // blue
+                         ctx.fillRect(margin + (width + margin) * c, margin + (height + margin) * r, width, height);
+                     }
+                 } else if (step < totalSteps) {
+                     const pathStep = step - explored.length;
+                     const [r, c] = path[pathStep];
+                     if (gridData[r][c] !== 2 && gridData[r][c] !== 3) {
+                         ctx.fillStyle = idxToColor[5]; // magenta
+                         ctx.fillRect(margin + (width + margin) * c, margin + (height + margin) * r, width, height);
+                     }
+                 } else {
+                     return; 
+                 }
+                 step++;
+             }
+             if (step < totalSteps) {
+                 animFrame = requestAnimationFrame(renderFrame);
+             }
+         };
+         animFrame = requestAnimationFrame(renderFrame);
+      }
+      return () => {
+         if (animFrame) cancelAnimationFrame(animFrame);
+      }
     }
-  }, [gridData]);
+  }, [gridData, animationHistory]);
 
   useEffect(() => {
     fetchMazes();
@@ -147,17 +187,33 @@ function App() {
     }
     
     setStatus('running');
-    addLog(`Rendering ${mode === 'solved' ? 'solved ' : ''}${targetMaze} natively...`);
+    addLog(`Rendering ${mode === 'solved' ? 'solved animation for ' : ''}${targetMaze} natively...`);
     try {
-      const algoParam = mode === 'solved' ? (algorithm === 'astar' ? 'aStar' : algorithm) : '';
-      const queryParams = new URLSearchParams({ mazeFile: targetMaze });
-      if (algoParam) queryParams.append('algorithm', algoParam);
+      // 1. Fetch un-solved grid base
+      const gridQuery = new URLSearchParams({ mazeFile: targetMaze });
+      const resGrid = await fetch(`http://localhost:3001/api/grid?${gridQuery}`);
+      const dataGrid = await resGrid.json();
+      if (!resGrid.ok) throw new Error(dataGrid.error);
       
-      const res = await fetch(`http://localhost:3001/api/grid?${queryParams}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      setGridData(dataGrid.grid);
+
+      // 2. Fetch history for animation if mode is solved
+      if (mode === 'solved') {
+          const algoParam = algorithm === 'astar' ? 'aStar' : algorithm;
+          const histQuery = new URLSearchParams({ mazeFile: targetMaze, algorithm: algoParam });
+          const resHist = await fetch(`http://localhost:3001/api/history?${histQuery}`);
+          
+          if (resHist.ok) {
+              const histData = await resHist.json();
+              setAnimationHistory(histData);
+          } else {
+              setAnimationHistory(null);
+              throw new Error('Animation history not found. Has it been solved yet?');
+          }
+      } else {
+          setAnimationHistory(null);
+      }
       
-      setGridData(data.grid);
       addLog('Successfully rendered maze to dashboard.', 'success');
       setStatus('idle');
     } catch (err) {
@@ -254,6 +310,21 @@ function App() {
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
+          </div>
+
+          <div className="control-group" style={{ marginTop: '0.5rem' }}>
+            <label className="control-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Animation Speed</span>
+              <span>{animSpeed}x</span>
+            </label>
+            <input 
+              type="range" 
+              min="1" 
+              max="50" 
+              value={animSpeed} 
+              onChange={(e) => setAnimSpeed(parseInt(e.target.value))}
+              style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--primary)' }}
+            />
           </div>
 
           <button 
