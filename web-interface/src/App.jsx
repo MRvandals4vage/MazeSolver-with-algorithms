@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Settings, RefreshCw, Box, Terminal, Zap, Eye, CheckCircle2, AlertCircle } from 'lucide-react';
+import characterHeadImg from './assets/character_head.png';
 import './index.css';
 
 function App() {
@@ -12,21 +13,34 @@ function App() {
   const [status, setStatus] = useState('idle'); // idle, running, error
   const logsEndRef = useRef(null);
   const canvasRef = useRef(null);
+  const headCanvasRef = useRef(null);
   const [gridData, setGridData] = useState(null);
   const [animationHistory, setAnimationHistory] = useState(null);
   const [animSpeed, setAnimSpeed] = useState(5);
+  const headImageRef = useRef(null);
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = characterHeadImg;
+    img.onload = () => {
+      headImageRef.current = img;
+    };
+    if (img.complete) {
+      headImageRef.current = img;
+    }
+  }, []);
 
   // Allow configuring backend URL for separated Vercel + Render deployments
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
   // Colors based on main.py
   const idxToColor = [
-    '#000000', // 0: black (wall)
+    '#485460', // 0: black (wall)
     '#ffffff', // 1: white (space)
-    '#32cd32', // 2: green (start)
-    '#ff6347', // 3: red (goal)
-    '#99ffff', // 4: blue (current/explored)
-    '#ff00ff'  // 5: magenta (solution)
+    '#2ed573', // 2: green (start)
+    '#ff4757', // 3: red (goal)
+    '#70a1ff', // 4: blue (current/explored)
+    '#ffa502'  // 5: magenta (solution)
   ];
 
   useEffect(() => {
@@ -43,8 +57,17 @@ function App() {
       canvas.width = (width + margin) * numCols + margin;
       canvas.height = (height + margin) * numRows + margin;
       
-      // Draw Base Grid Background (grey like Pygame)
-      ctx.fillStyle = '#d3d3d3';
+      let headCtx = null;
+      let headCanvas = null;
+      if (headCanvasRef.current) {
+         headCanvas = headCanvasRef.current;
+         headCanvas.width = canvas.width;
+         headCanvas.height = canvas.height;
+         headCtx = headCanvas.getContext('2d');
+      }
+      
+      // Draw Base Grid Background
+      ctx.fillStyle = '#f1f2f6';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       for (let r = 0; r < numRows; r++) {
@@ -63,32 +86,84 @@ function App() {
       let animFrame;
       if (animationHistory) {
          let step = 0;
-         const { explored, path } = animationHistory;
-         const totalSteps = explored.length + path.length;
+         const { explored, path, mode } = animationHistory;
+         
+         let nodesToAnimate = [];
+         if (mode === 'explored') {
+            nodesToAnimate = explored.map(n => ({ r: n[0], c: n[1], type: 4 }));
+         } else if (mode === 'optimal') {
+            nodesToAnimate = path.map(n => ({ r: n[0], c: n[1], type: 5 }));
+         } else {
+            // solved or fallback
+            nodesToAnimate = [
+               ...explored.map(n => ({ r: n[0], c: n[1], type: 4 })),
+               ...path.map(n => ({ r: n[0], c: n[1], type: 5 }))
+            ];
+         }
+
+         const totalSteps = nodesToAnimate.length;
          let speed = animSpeed; // Number of steps to draw per frame
 
-         const renderFrame = () => {
-             for (let i = 0; i < speed; i++) {
-                 if (step < explored.length) {
-                     const [r, c] = explored[step];
-                     if (gridData[r][c] !== 2 && gridData[r][c] !== 3) { // keep start/goal
-                         ctx.fillStyle = idxToColor[4]; // blue
-                         ctx.fillRect(margin + (width + margin) * c, margin + (height + margin) * r, width, height);
-                     }
-                 } else if (step < totalSteps) {
-                     const pathStep = step - explored.length;
-                     const [r, c] = path[pathStep];
-                     if (gridData[r][c] !== 2 && gridData[r][c] !== 3) {
-                         ctx.fillStyle = idxToColor[5]; // magenta
-                         ctx.fillRect(margin + (width + margin) * c, margin + (height + margin) * r, width, height);
-                     }
-                 } else {
-                     return; 
-                 }
-                 step++;
+          const renderFrame = () => {
+             // We no longer need manual cleanup on the main canvas!
+             // Just clean the entire headCanvas overlay.
+             if (headCtx && headCanvas) {
+                 headCtx.clearRect(0, 0, headCanvas.width, headCanvas.height);
              }
+
+             // Paint multiple steps based on speed ON THE MAIN CANVAS
+             for (let i = 0; i < speed; i++) {
+                 if (step < totalSteps) {
+                     const { r, c, type } = nodesToAnimate[step];
+                     if (gridData[r][c] !== 2 && gridData[r][c] !== 3) {
+                         ctx.fillStyle = idxToColor[type];
+                         ctx.fillRect(margin + (width + margin) * c, margin + (height + margin) * r, width, height);
+                     }
+                     step++;
+                 } else {
+                     break; 
+                 }
+             }
+
+             // Draw head at the new front line exclusively on headCanvas
+             if (step > 0 && headCtx) {
+                 const lastDrawn = nodesToAnimate[step - 1];
+                 const cx = margin + (width + margin) * lastDrawn.c;
+                 const cy = margin + (height + margin) * lastDrawn.r;
+                 
+                 // Make the head 2.5x the size of the block so it's impossible to miss!
+                 const headSize = width * 2.5;
+                 const offset = (headSize - width) / 2;
+                 
+                 // Add fun shadow to the head
+                 headCtx.shadowColor = "rgba(0,0,0,0.4)";
+                 headCtx.shadowBlur = 8;
+                 headCtx.shadowOffsetY = 4;
+                 
+                 // Only draw if image is valid, otherwise fallback
+                 if (headImageRef.current && headImageRef.current.complete && headImageRef.current.naturalWidth > 0) {
+                     headCtx.drawImage(
+                         headImageRef.current, 
+                         cx - offset, 
+                         cy - offset - 4, // floating slightly upwards
+                         headSize, 
+                         headSize
+                     );
+                 } else {
+                     headCtx.font = `${headSize}px Arial`;
+                     headCtx.textAlign = "center";
+                     headCtx.textBaseline = "middle";
+                     headCtx.fillText("🤖", cx + width/2, cy + height/2);
+                 }
+                 
+                 // reset shadows safely
+                 headCtx.shadowColor = "transparent";
+             }
+
              if (step < totalSteps) {
                  animFrame = requestAnimationFrame(renderFrame);
+             } else if (animationHistory.mode === 'optimal' || !animationHistory.mode) {
+                 // For optimal/solved, stay showing
              }
          };
          animFrame = requestAnimationFrame(renderFrame);
@@ -126,7 +201,7 @@ function App() {
           return latest;
         }
       }
-    } catch (err) {
+    } catch {
       addLog('Failed to fetch maze list.', 'error');
     }
     return null;
@@ -200,15 +275,15 @@ function App() {
       
       setGridData(dataGrid.grid);
 
-      // 2. Fetch history for animation if mode is solved
-      if (mode === 'solved') {
+      // 2. Fetch history for animation if mode requires it
+      if (mode === 'solved' || mode === 'explored' || mode === 'optimal') {
           const algoParam = algorithm === 'astar' ? 'aStar' : algorithm;
           const histQuery = new URLSearchParams({ mazeFile: targetMaze, algorithm: algoParam });
           const resHist = await fetch(`${API_BASE}/api/history?${histQuery}`);
           
           if (resHist.ok) {
               const histData = await resHist.json();
-              setAnimationHistory(histData);
+              setAnimationHistory({ ...histData, mode });
           } else {
               setAnimationHistory(null);
               throw new Error('Animation history not found. Has it been solved yet?');
@@ -345,17 +420,25 @@ function App() {
               className="btn btn-secondary" 
               onClick={() => handleVisualize('original')}
               disabled={status === 'running' || !selectedMaze}
-              style={{ fontSize: '0.9rem', padding: '0.6rem' }}
+              style={{ fontSize: '0.9rem', padding: '0.6rem', gridColumn: 'span 2' }}
             >
               <Eye size={16} /> Original
             </button>
             <button 
               className="btn btn-secondary" 
-              onClick={() => handleVisualize('solved')}
+              onClick={() => handleVisualize('explored')}
               disabled={status === 'running' || !selectedMaze}
               style={{ fontSize: '0.9rem', padding: '0.6rem' }}
             >
-              <Eye size={16} /> Solved
+              <Eye size={16} /> Explored
+            </button>
+            <button 
+              className="btn btn-secondary" 
+              onClick={() => handleVisualize('optimal')}
+              disabled={status === 'running' || !selectedMaze}
+              style={{ fontSize: '0.9rem', padding: '0.6rem' }}
+            >
+              <CheckCircle2 size={16} /> Optimal
             </button>
           </div>
 
@@ -369,15 +452,22 @@ function App() {
           </div>
           
           {gridData && (
-            <div style={{ display: 'flex', justifyContent: 'center', margin: '1rem 0', overflow: 'auto' }}>
-              <canvas 
-                ref={canvasRef} 
-                style={{ 
-                  borderRadius: '8px', 
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-                  backgroundColor: '#d3d3d3'
-                }} 
-              />
+            <div style={{ display: 'flex', justifyContent: 'center', margin: '2rem 0', padding: '1rem' }}>
+              <div style={{ position: 'relative' }}>
+                <canvas ref={canvasRef} id="maze-canvas" />
+                <canvas 
+                  ref={headCanvasRef} 
+                  style={{ 
+                    position: 'absolute', 
+                    top: 0, 
+                    left: 0, 
+                    pointerEvents: 'none', 
+                    background: 'transparent', 
+                    boxShadow: 'none', 
+                    border: 'none' 
+                  }} 
+                />
+              </div>
             </div>
           )}
 
